@@ -36,7 +36,7 @@ SLURM_SCRIPT = '''
 #SBATCH --account=co_laika
 #
 # QoS:
-#SBATCH --qos=savio_lowprio
+#SBATCH --qos={priority}
 #
 #SBATCH --nodes=1
 #
@@ -110,6 +110,7 @@ def _prep_slurm(
         filepath,
         jobname='slurm_job',
         partition='savio2',
+        priority='savio2_lowprio',
         job_spec=None,
         limit=None,
         uniqueid='"${SLURM_ARRAY_JOB_ID}"',
@@ -161,6 +162,7 @@ def _prep_slurm(
         f.write(template.format(
             jobname=jobname,
             partition=partition,
+            priority=priority,
             numjobs=numjobs,
             jobs_per_node=jobs_per_node,
             maxnodes=(maxnodes-1),
@@ -176,6 +178,7 @@ def run_slurm(
         filepath,
         jobname='slurm_job',
         partition='savio2',
+        priority='savio2_lowprio',
         job_spec=None,
         limit=None,
         uniqueid='"${SLURM_ARRAY_JOB_ID}"',
@@ -189,6 +192,7 @@ def run_slurm(
         filepath=filepath,
         jobname=jobname,
         partition=partition,
+        priority=priority,
         job_spec=job_spec,
         limit=limit,
         uniqueid=uniqueid,
@@ -349,6 +353,16 @@ def slurm_runner(
     def slurm():
         pass
 
+    def validate(partition, priority):
+        """
+        Checks that normal prio is used only on savio2_bigmem.
+        """
+        try:
+            if priority == 'laika_bigmem2_normal':
+                assert partition == 'savio2_bigmem'
+        except ValueError:
+            raise click.BadParameter('Normal prio only for savio2_bigmem.')
+
     @slurm.command()
     @click.option(
         '--limit', '-l', type=int, required=False, default=None,
@@ -363,6 +377,9 @@ def slurm_runner(
         '--jobname', '-j', default='test', help='name of the job')
     @click.option(
         '--partition', '-p', default='savio2', help='resource on which to run')
+    @click.option(
+        '--priority', '-P', default='savio2_lowprio',
+        help='priority on which to run')
     @click.option('--dependency', '-d', type=int, multiple=True)
     @click.option(
         '--logdir', '-L', default='log', help='Directory to write log files')
@@ -375,6 +392,7 @@ def slurm_runner(
             jobname='slurm_job',
             dependency=None,
             partition='savio2',
+            priority='savio2_lowprio',
             maxnodes=100,
             logdir='log',
             uniqueid='"${SLURM_ARRAY_JOB_ID}"'):
@@ -383,6 +401,7 @@ def slurm_runner(
             filepath=filepath,
             jobname=jobname,
             partition=partition,
+            priority='savio2_lowprio',
             job_spec=job_spec,
             jobs_per_node=jobs_per_node,
             maxnodes=maxnodes,
@@ -406,18 +425,25 @@ def slurm_runner(
     @click.option(
         '--partition', '-p', default='savio2', help='resource on which to run')
     @click.option(
+        '--priority', '-P', default='savio2_lowprio',
+        help='priority on which to run',
+        callback=validate)
+    @click.option(
         '--dependency', '-d', type=int, multiple=True)
     @click.option(
         '--logdir', '-L', default='log', help='Directory to write log files')
     @click.option(
         '--uniqueid', '-u', default='"${SLURM_ARRAY_JOB_ID}"',
         help='Unique job pool id')
-    def run(
-            limit=None,
+
+
+
+    def run(limit=None,
             jobs_per_node=24,
             jobname='slurm_job',
             dependency=None,
             partition='savio2',
+            priority='savio2_lowprio',
             maxnodes=100,
             logdir='log',
             uniqueid='"${SLURM_ARRAY_JOB_ID}"'):
@@ -429,6 +455,7 @@ def slurm_runner(
             filepath=filepath,
             jobname=jobname,
             partition=partition,
+            priority=priority,
             job_spec=job_spec,
             jobs_per_node=jobs_per_node,
             maxnodes=maxnodes,
@@ -441,6 +468,7 @@ def slurm_runner(
             filepath=filepath,
             jobname=jobname+'_finish',
             partition=partition,
+            priority=priority,
             dependencies=('afterany', [slurm_id]),
             logdir=logdir,
             flags=['cleanup', slurm_id])
